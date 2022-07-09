@@ -1,0 +1,202 @@
+#!/bin/bash 
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:33 PDT 2008
+#
+###################################################################################
+
+if [ "$#" -lt "6" ]
+then
+	echo "Usage $0 <connfile> <topn> <title> <REQ> <RSP> <conndata>"
+	exit
+fi
+connfile=$1
+if [ "$2" == "" ]
+then
+	topn=10
+else
+	topn=$2
+fi
+
+title=$3
+reqfile=$4
+rspfile=$5
+conndata=$6
+newbytesfromto=0
+
+# conn per host 
+
+#clients
+cat $connfile | awk '{ a[$1]++ }  END { for (ip in a) { print ip, a[ip]}}' > clip_numconn
+cat $connfile | awk '{ a[$3]++ }  END { for (ip in a) { print ip, a[ip]}}' > srip_numconn
+
+interestingfiles="ip_bytesto ip_bytesfrom ip_flowend ip_flowstart clip_numconn srip_numconn reqfile rspfile"
+interestingfiles="ip_bytesfrom ip_flowstart clip_numconn reqfile rspfile"
+interestingfiles="ip_bytesfrom ip_bytesto"
+interestingfiles=""
+cat < /dev/null>ip_bytesto
+cat < /dev/null>ip_bytesfrom
+cat < /dev/null>ip_flowstart
+cat < /dev/null>ip_flowend
+#bytes per host
+cat ${reqfile} | awk ' { print NR"##"$1, $2 }' > reqfile
+cat ${rspfile} | awk ' { print NR"##"$1, $2 }' > rspfile
+if [ "$newbytesfromto" == "1" ]
+then
+	ipbytes_tofrom ${connfile}
+else
+cat $connfile | awk '{
+	cip=$1 ;
+	sip=$3;
+	req=0;
+	rsp=0;
+	for(f=9;f<=NF;f++) {
+		if($f=="REQ") {
+			req+=$(f+1);
+			fstart[cip]++;
+			fend[sip]++;
+		}
+		if($f=="RSP") {
+			rsp+=$(f+1);
+			fend[cip]++;
+			fstart[sip]++;
+		}
+
+	}
+	ttl=req+rsp;
+	#total[ip]=total[ip]+ttl;
+	bytesfrom[cip]+=req;
+	bytesfrom[sip]+=rsp;
+	bytesto[sip]+=req;
+	bytesto[cip]+=rsp;
+#print ip, ttl;
+} END { 
+	for( ips in bytesfrom) {
+	print ips, bytesfrom[ips] >>"ip_bytesfrom"
+	}
+	for( ips in bytesto) {
+	print ips, bytesto[ips] >>"ip_bytesto"
+	}
+	for(ips in fstart) {
+	print ips, fstart[ips]>>"ip_flowstart";
+	}
+	for(ips in fend) {
+	print ips, fend[ips]>>"ip_flowend";
+	}
+
+	}'
+fi
+# now plot as well 
+
+cat < /dev/null > allgraphs.m
+echo " clf reset; hold off " >>allgraphs.m
+f=1;
+symbols="> < + o x diamond > <"
+colors="red red blue blue black black green green"
+for files in `echo ${interestingfiles}`
+do
+	echo -ne "\r doing $files    " 
+	getlotsofstats ${files} ${topn} 0 > ${files}.stats.top${topn}
+	#echo  " done   "
+	cat ${files}.tmp.m >> allgraphs.m
+	if [ "$f" == "1" ]
+	then
+		echo " hold on ; " >> allgraphs.m
+		symbol=`extract_offset $f $symbols`
+		 color=`extract_offset $f $colors`
+		echo " set(p_${files},'Marker','${symbol}')" >>allgraphs.m
+		echo " set(p_${files},'Color','${color}')" >>allgraphs.m
+		f=$((f+1))
+	else
+		symbol=`extract_offset $f $symbols`
+		 color=`extract_offset $f $colors`
+		echo " set(p_${files},'Marker','${symbol}')" >>allgraphs.m
+		echo " set(p_${files},'Color','${color}')" >>allgraphs.m
+		f=$((f+1))
+	fi
+done
+echo " done "
+
+echo "xlabel('Percent of IPs');
+ylabel('Cumulative fraction ');" >> allgraphs.m
+
+
+#make legend
+f=1
+(
+echo -n " legend("
+for files in `echo $interestingfiles`
+do
+	s=`echo $files | sed 's/_/\\\\_/'`
+	if [ "$f" -gt "1" ]
+	then
+		echo -n ","
+	fi
+	echo -ne "'${s}'"
+	f=$((f+1))
+done
+echo ",4);"
+) >> allgraphs.m
+
+echo " 
+title('${title}');
+print -depsc compareall
+
+" >> allgraphs.m
+
+
+for files in `echo $interestingfiles`
+
+do
+	echo " Top ${topn} $files "
+	cat ${files}.top${topn} | sed 's/^[0-9]*##//'
+	echo "--------------------------------"
+done > TOP${topn}
+
+
+
+for files in `echo $interestingfiles`
+
+do
+	echo " Top ${topn} $files "
+	cat ${files}.stats.top${topn}
+	echo "--------------------------------"
+done > TOP${topn}.stats
+
+(
+for f in `echo ip_bytesfrom ip_bytesto`
+do
+	echo $f
+	for ips in `cat $f.top${topn}| awk '{ print $1 }'`
+	do
+		echo -n " $ips "
+		twosided_q $ips ${conndata} | grep zeros
+	done
+done 
+) >> TOP${topn}.stats

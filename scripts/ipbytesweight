@@ -1,0 +1,104 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:30 PDT 2008
+#
+###################################################################################
+
+
+# The way it is currently implemented ipmaps_port_numbers produced with a
+# indiv of 1 will have the fractions (third column) on a per direction
+# basis for this port
+
+if [ "$#" -lt "2" ]
+then
+	echo "Usage $0 <ipbytesfromfile> <ipmaps> <0/1 optional>"
+	exit
+fi
+
+ipbytesfromfile=$1
+ipbytestofile=`echo $ipbytesfromfile| sed 's/\(.*\)_bytesfrom/\1_bytesto/'`
+ipmapsfile=$2
+
+if [ "$3" == "" ]
+then
+	indiv=0;
+else
+	indiv=$3
+fi
+
+ttlbytes=`cat ${ipbytesfromfile} | awk '{ print $2 }' | ttl | awk '{ printf "%d\n",$1}'`
+
+cat < /dev/null > ipcommonfile
+
+(
+cat ${ipbytesfromfile}
+cat ${ipbytestofile}
+) | awk '{ b[$1]+=$2;
+} END {
+	for( ips in b) {
+		print ips, b[ips] >>"ipcommonfile";
+	}
+}'
+(
+cat ${ipmapsfile} | sed 's/^/ipmap /'
+cat ipcommonfile
+)| awk ' BEGIN {
+	zeros = 0; ones = 0; twos=0;threes=0;
+}{
+	if($1=="ipmap") dir[$2]=$3;
+	else {
+		if(dir[$1]=="1") ones+=$2;
+		else if(dir[$1]=="2") twos+=$2;
+		else if(dir[$1]=="3") threes+=$2;
+		else if(dir[$1]=="0") zeros+=$2
+	}
+} END {
+	printf "zeros=%d ; ones=%d ; twos=%d ; threes=%d\n",zeros,ones, twos, threes  > "tmpbytesfile"; 
+}'
+source tmpbytesfile
+
+(
+cat ${ipmapsfile} | sed 's/^/ipmap /'
+cat ipcommonfile
+) | awk -v indiv=$indiv -v ones=$ones -v zeros=$zeros  -v twos=$twos -v threes=$threes -v ttlbytes=$ttlbytes ' BEGIN {
+	ttl["0"]=zeros;
+	ttl["1"]=ones;
+	ttl["2"]=twos;
+	ttl["3"]=threes;
+}{
+	if($1=="ipmap") dir[$2]=$3 ;
+	else num[$1]=$2;
+} END { for(ips in dir) { 
+		if(num[ips]=="") num[ips]=0;
+		if(indiv==0)
+		printf "%s %d %.6f\n",  ips, dir[ips], num[ips]/(ones+zeros+twos+threes);
+		else
+		printf "%s %d %.6f\n",  ips, dir[ips], num[ips]/ttl[dir[ips]];
+	} }'

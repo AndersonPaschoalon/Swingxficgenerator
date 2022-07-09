@@ -1,0 +1,13 @@
+<hardware>
+<host hostname="sysnet15.ucsd.edu"/>
+<host hostname="sysnet16.ucsd.edu"/>
+<host hostname="sysnet17.ucsd.edu"/>
+<host hostname="sysnet18.ucsd.edu"/>
+<host hostname="sysnet19.ucsd.edu"/>
+<host hostname="sysnet21.ucsd.edu"/>
+<host hostname="sysnet24.ucsd.edu"/>
+<host hostname="sysnet23.ucsd.edu"/>
+<host hostname="sysnet37.ucsd.edu"/>
+<host hostname="sysnet38.ucsd.edu"/>
+<emul hostname="sysnet22.ucsd.edu"/>
+</hardware>

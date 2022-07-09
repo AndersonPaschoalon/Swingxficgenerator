@@ -1,0 +1,78 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:26 PDT 2008
+#
+###################################################################################
+
+if [ "$#" -lt "2" ]
+then
+	echo "Usage: $0 <ipmaps> <origfile> <newparamfile>"
+	exit
+fi
+
+ipmaps=$1
+ofile=$2
+nfile=$3 # the param file
+
+source ./addparammedians
+(
+	cat ${ipmaps} | sed 's/^/ipmaps /'
+	cat ${nfile} | sed 's/^/nfile /'
+	cat ${ofile} 
+) | awk -v paramfile=${nfile} -v ipmapsfile=${ipmaps} -v prm0=${prm0} -v prm1=${prm1} -v prm2=${prm2} -v prm3=${prm3}  -v sd=`gettimeofday` -v l0=${lines0} -v l1=${lines1} -v l2=${lines2} -v l3=${lines3} 'BEGIN {
+srand(sd);
+}
+{
+
+	if($1=="ipmaps") dir[$2]=$3;
+	else if($1=="nfile") nparam[$2]=$3;
+	else {
+		if(nparam[$1]=="") {
+			if(dir[$1]=="0") {prm=prm0;l=l0}
+			else if(dir[$1]=="1") {prm=prm1; l=l1}
+			else if(dir[$1]=="2") {prm=prm2;l=l2}
+			else {prm=prm3; l=l3}
+			prctile=rand()*100;
+			sendstring="getsamplesperdir_weighted "ipmapsfile" "paramfile" " dir[$1]" 100 | getpercentile - "prctile ; 
+			printf "%s ", $0;
+			if(l==0) {
+				system(sendstring);
+			}
+			else { 
+				print prm;
+			}
+		}
+		else {
+			prm=nparam[$1];
+			print $0, prm;
+		}
+		l=0;
+	}
+}'

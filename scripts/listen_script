@@ -1,0 +1,86 @@
+#!/bin/bash  -x
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:31 PDT 2008
+#
+###################################################################################
+source ./params.file
+if [ "$#" != "4" ]
+then
+	echo "Usage $0 <portnum> <class> <transport> <vnnum>"
+	exit -1
+fi
+portnum=$1
+class=$2
+transport=$3
+vnnum=$4
+mkdir -p ${tmplistenerdir}
+touch ${tmplistenerdir}/${vnnum}
+ls ./paramsforscript > /dev/null
+sleep 5
+ls ./paramsforscript > /dev/null
+source ./paramsforscript
+source ./psizeparam
+source ./JOBVARIABLES
+
+ls ${common_list_file} >/dev/null
+ls ${SWINGHOME}/pktsizeSwing
+sleep 5
+echo $vnnum >> ${common_list_file}
+ls ${common_list_file} > /dev/null
+sleep 5
+echo $vnnum >> ${common_list_file}
+fnd=`cat ${common_list_file} |sort -u  | grep -w $vnnum`
+while [ "$fnd" == "" ]
+do
+	echo $vnnum >> ${common_list_file}
+	sleep 1
+	fnd=`cat ${common_list_file} | sort -u | grep -w $vnnum`
+done
+
+echo "starting listener vn $vnnum" > ${tmplistenerdir}/$vnnum
+PKTSIZE=`${SWINGHOME}/bin/gettopofield ${psizevalstrace} $vnnum 5`
+if [ "$PKTSIZE" == "" ]
+then
+	PKTSIZE=1480
+fi
+if [ "$psize" == "max" ]
+then
+	PKTSIZE=1352
+fi
+if [ "$psize" == "min" ]
+then
+	PKTSIZE=300
+fi
+if [ "$PKTSIZE" -lt "100" ]
+then
+	PKTSIZE=100
+fi
+echo " pktsize $PKTSIZE $vnnum `hostname` listen ; portnum ${portnum} ; class ${class} ; transport ${transport} ; PKTSIZE ; ${PKTSIZE} " >>${SWINGHOME}/pktsizeSwing
+${listener} -p ${portnum} -c ${class} -t ${transport} -m ${PKTSIZE} 2>> ${tmplistenerdir}/${vnnum} >> ${tmplistenerdir}/${vnnum}  || ( errline=`cat ${tmplistenerdir}/${vnnum} | /usr/bin/tail -n 1 `; echo "Error listener $vnnum $? ${errline}" >> ${common_list_file})

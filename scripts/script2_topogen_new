@@ -1,0 +1,150 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:32 PDT 2008
+#
+###################################################################################
+
+rtttouse="rtt_50"
+emgtouse="emg_75"
+if [ "$#" -lt "3" ]
+then 
+	echo "Usage $0 <tcpdumpfile> <ipmaps> <fh> <0/1> <nonswing>"
+	echo " by default nonswing (else give 5th comm line arg)"
+	echo "4th arg is for doing weighted or not by conn.
+	default =  1  and nonswing"
+	exit
+fi
+
+tcpdumpfile=$1
+ipmaps=$2
+fh=$3
+plr=0;
+# plr =1 means zero
+if [ "$4" == "" ]
+then
+	weighted=1
+	nonswing="nonswing"
+else
+	weighted=$4
+	if [ "$5" == "" ]
+	then
+		nonswing="nonswing"
+	else
+		nonswing=""
+	fi
+fi
+tcpdumpfilename=`echo $tcpdumpfile | sed 's/.*\///'`  
+directory=`echo $tcpdumpfile | sed 's/\(.*\)\//\1#/' | sed 's/#.*//'`
+directory=`dirname ${tcpdumpfile}`
+tcpdumpfilename=`basename ${tcpdumpfile}`
+cd $directory
+
+
+
+if [ "$nonswing" == "nonswing" ]
+then
+	otherdir="othertcp"
+	other="other"
+else
+	otherdir="22222"
+	other="22222"
+fi
+
+cd $directory
+wait
+
+for ports in `cat ports | awk '{ if(NR>1) print $1 }'`
+do	
+	(
+		#	echo $ports
+		cd $ports
+		SECONDS=0
+		ii=0;
+		echo -ne "\r port:$ports statsperhost           "
+		statsperhost ${tcpdumpfilename}.tcp.${ports}.conninfo 10 ${fh}top10 param_REQ_othertcp_${fh}ip param_RSP_othertcp_${fh}ip ${tcpdumpfilename}.tcp.${ports}.forconndata 2>/dev/null 1>&2
+		echo -ne "\r port:$ports ipbytesweight          "
+		ipbytesweight ip_bytesfrom ../ipmaps_${ports} > ipmaps_${ports}_numbers
+		ipbytesweight ip_bytesfrom ../ipmaps_new_${ports} > ipmaps_new_${ports}_numbers
+		echo -ne "\r port:$ports hostconnectivityip     "
+		hostconnectivityip ${tcpdumpfilename}.tcp.${ports}.tolog 1
+		echo -ne "\r port:$ports emgip                  "
+		emgip ${tcpdumpfilename}.tcp.${ports}.forconndata
+		echo -ne "\r port:$ports getplrnew-flowid       "
+		getplr-rexmissions-flowid ${tcpdumpfilename}.tcp.${ports}.tolog ${tcpdumpfilename}.tcp.${ports}.forconndata ${rtttouse} ${emgtouse}
+
+		echo -ne "\r port:$ports pktsizeip              "
+		pktsizeip ${tcpdumpfilename}.tcp.${ports}.forconndata
+		echo -ne "\r port:$ports wsizeip                "
+		wsizeip ${tcpdumpfilename}.tcp.${ports}.forconndata
+
+
+		echo -ne "\r port:$ports  done                                                    "
+		cd -
+	) 
+done
+
+#echo "tcpother"
+
+
+if [ "$fh" != "Swing" ]
+then
+# tcpother 
+(
+	ports=othertcp
+	cd $ports
+	SECONDS=0
+	ii=0;
+		echo -ne "\r port:$ports statsperhost           "
+		statsperhost ${tcpdumpfilename}.tcp.other.conninfo 10 ${fh}top10 param_REQ_othertcp_${fh}ip param_RSP_othertcp_${fh}ip ${tcpdumpfilename}.tcp.${ports}.forconndata 2>/dev/null 1>&2
+		echo -ne "\r port:$ports ipbytesweight          "
+		ipbytesweight ip_bytesfrom ../ipmaps_${ports} > ipmaps_${ports}_numbers
+		ipbytesweight ip_bytesfrom ../ipmaps_new_${ports} > ipmaps_new_${ports}_numbers
+		echo -ne "\r port:$ports hostconnectivityip     "
+		hostconnectivityip ${tcpdumpfilename}.tcp.other.tolog 1
+		echo -ne "\r port:$ports emgip                  "
+		emgip ${tcpdumpfilename}.tcp.other.forconndata
+
+		echo -ne "\r port:$ports getplrnew flowid       "
+		getplr-rexmissions-flowid ${tcpdumpfilename}.tcp.other.tolog ${tcpdumpfilename}.tcp.$other.forconndata ${rtttouse} ${emgtouse}
+
+		echo -ne "\r port:$ports pktsizeip              "
+		pktsizeip ${tcpdumpfilename}.tcp.other.forconndata
+		echo -ne "\r port:$ports wsizeip                "
+		wsizeip ${tcpdumpfilename}.tcp.other.forconndata
+
+
+		echo -ne "\r port:$ports done                         "
+   cd -
+) &
+fi
+(
+	ports=otherudp
+)&
+wait

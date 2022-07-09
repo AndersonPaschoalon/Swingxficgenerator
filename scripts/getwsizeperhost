@@ -1,0 +1,90 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:29 PDT 2008
+#
+###################################################################################
+
+if [ "$#" -lt "1" ]
+then
+	echo "Usage: $0 <forconndata>"
+	exit
+fi
+
+ffile=$1
+
+cat $ffile | grep "S" | grep win | sed 's/,/ /g'| awk '{if(/wscale/) print ;
+	else print $0,  " wscale 0" }' | awk '{ 
+			win=0;
+			scale=0;
+			thisdir=$1;
+			if(thisdir==0) {src=$3}
+		else {src=$5}
+			for (f=1;f<=NF;f++) {
+				if($f=="win") win=$(f+1);
+				if($f=="wscale") scale=$(f+1);
+		}
+		if(scale>=10) scale=1;
+		scale=pow(2,scale);
+		print  src " " win*scale;
+	} function pow(a,b) {
+		toreturn=1;
+		for(i=1;i<=b;i++) {
+		toreturn=toreturn*a;
+	}
+	return toreturn;
+}' | awk '{
+	ip=$1; wsize=$2;
+			split(ip,iparr,/\./);
+		if(iparr[4]!="" ){
+			host=iparr[1]"."iparr[2]"."iparr[3]"."iparr[4];
+		print host, wsize;
+		}
+
+
+}' > intermediatewsizefile
+cat intermediatewsizefile | sort -k 1,1 | awk '{
+	host=$1;
+	tm=$2;
+	if(host!=prevhost) {
+		if(prevhost!="") {
+		if(count>=0)	print prevhost" "count" "mintm" "tms;
+		}
+		count=1;
+		tms=tm;
+		mintm=tm;
+	} else {
+		count++;
+		if(tm<mintm) mintm=tm;
+		tms=tms" "tm;
+	}
+	prevhost=host;
+} END {
+	if(count>=0)		print prevhost" "count" "mintm" "tms;
+}'

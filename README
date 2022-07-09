@@ -1,0 +1,111 @@
+
+Swing, is a closed-loop traffic generator, aimed
+for laboratory experiments. The current beta release
+possibly contains a number of bugs that have not
+manifested in the limited testing the authors have
+done before releasing the source code.
+We would love to hear about any such findings. Any
+ideas for improvements are of course, always welcome.
+
+Please read all the categories, INSTALL, USAGE, ASSUMPTIONS,
+and DESCRIPTION before prooceeding with experimentation.
+
+
+The brief explanation here assumes BASH as the shell
+environment. Please alter the commands as appropriate
+per your environment.
+
+
+ASSUMPTIONS:
+============
+* You have sudo access on all machines.
+* A sample hosts.xml is provided, please modify as appropriate.
+* Make sure tcpdump is in your path.
+* Make sure modelnet is up and running in the cluser, and that 
+  modelnet's bindir is in your path.
+* /usr/local/bin/bash and /usr/bin/bash both exist.
+* All machines used in the cluster can mount the same NFS dirs.
+* gexec/gexecd/authd are all present in /usr/local/sbin
+* Each trace that acts as input to Swing is self-contained
+  in a dir.
+* Each expt produces a trace that is, again, self-contained
+  in a dir, which in-turn is a subdir of ${SWINGTRACES}.
+
+
+INSTALL:
+========
+$ ./configure --prefix=<directory where you want Swing installed>
+$ make
+$ make install
+
+
+USAGE:
+======
+$ export SWINGHOME=<dir of Swing installation> 
+(i.e. same as that used in prefix above)
+
+$ export PATH=${SWINGHOME}:${PATH}
+
+now here are two different usage scenarios
+
+Scenario1:
+----------
+	Say you have a single file (in pcap format).
+	Rename it as fileboth.dump
+
+    create a directory for storing the trace, say tracedir1
+	$ mkdir /home/john/tracedir1
+	$ cp tracefile.dump /home/john/tracedir1/
+
+	say the outputs are in some dir ${SWINGTRACES}
+	and this particular expt is in dir swingexpt1
+	now call
+	$ swing_masterscript.sh /home/john/tracedir1 <filehandle> ${SWINGHOME} swingexpt1 ${SWINGTRACES}
+
+	After the expt the trace will be collected in dir ${SWINGTRACES}/swingexpt1
+	as fileboth, file0 and file1
+
+Scenario2:
+----------
+	Say you have two files (file0 and file1), corresponding
+	to the two directions of traffic
+
+    create a directory for storing the trace, say tracedir1
+	$ mkdir /home/john/tracedir1
+	$ cp file0 file1 /home/john/tracedir1/
+
+	say the outputs are in some dir ${SWINGTRACES}
+	and this particular expt is in dir swingexpt1
+	now call
+	$ swing_masterscript.sh /home/john/tracedir1 <filehandle> ${SWINGHOME} swingexpt1 ${SWINGTRACES}
+
+	After the expt the trace will be collected in dir ${SWINGTRACES}/swingexpt1
+	as fileboth, file0 and file1
+
+Note, that both scenarios are almost identical.
+
+
+
+DESCRIPTION:
+============
+swing_masterscript.sh involves 3 stages
+
+Stage 0: Convert 2way trace (say fileboth.dump) to 1way traces (file0 and file1) if
+neeeded. 
+(scripts/swing_trace_convert_2way_2_1way.sh)
+
+Stage 1: Extract user/network/application parameters from  the trace
+(scripts/swing_extractuserappnwparams.sh)
+
+Stage 2: Configure the expt with metadata etc.
+Run the xpt.
+Collect the resulting swing trace.
+(scripts/swing_exptpreprocess.sh)
+
+These stages can be called independently too.
+Please modify as appropriate.
+
+
+
+
+Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>

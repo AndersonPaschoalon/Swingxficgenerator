@@ -1,0 +1,76 @@
+#!/bin/bash -x
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:30 PDT 2008
+#
+###################################################################################
+if [ "$1" == "" ]
+then
+	SECS=60
+else
+	SECS=$1
+fi
+
+source JOBVARIABLES
+source params.file
+cd ${SWINGHOME}
+
+os=`uname`
+if [ "$os" != "Linux" ]
+then
+	exit
+fi
+
+exit
+echo "sleeping $SECS secs `hostname` `date`" >> ${SWINGHOME}/killsecsoutput
+sleep $SECS
+sleep 60
+sleep 60
+ls > /dev/null
+sleep 5
+echo "sleep over `hostname` `date`" >> ${SWINGHOME}/killsecsoutput
+${SWINGHOME}/bin/vnsnotoveryet | grep ^vn | awk '{ print $2 }' >> ${SWINGHOME}/common_file
+sleep 60
+echo "forcing kill of scripts if not over yet `date` `hostname`" >> ${SWINGHOME}/killsecsoutput
+killall -9 generator_daemon
+echo " called killall generator_daemon `hostname` `date`" >> ${SWINGHOME}/killsecsoutput
+sleep 30
+killall -9 listener
+echo " called killall listener `hostname` `date`" >> ${SWINGHOME}/killsecsoutput
+sleep 30
+killall -9 listen_script
+echo " called killall listen_script `hostname` `date`" >> ${SWINGHOME}/killsecsoutput
+sleep 30
+killall -9 gexec_script
+echo " called killall gexec_script `hostname` `date`" >> ${SWINGHOME}/killsecsoutput
+sleep 30
+export DISPLAY=/dev/null
+echo "`hostname` reboot `date`" >> ${SWINGHOME}/bin/rebootmachines
+sleep 10
+/usr/bin/sudo /usr/bin/reboot

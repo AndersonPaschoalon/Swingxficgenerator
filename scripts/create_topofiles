@@ -1,0 +1,424 @@
+#!/bin/bash 
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:27 PDT 2008
+#
+###################################################################################
+
+
+if [ "$#" -lt "4" ]
+then
+	echo "Usage: $0 <ipmaps_numbers> <0/1 for numbers> <RANSEED> <port> <list of params>"
+	exit
+fi
+
+ipmaps=$1
+weight=$2
+RANDOM=$3
+thisport=$4
+
+
+
+shift; shift; shift; shift;
+declare -a paramarray
+n=1;
+while [ "$1" != "" ]
+do
+	paramarray[${n}]=$1
+	n=$((n+1))
+	shift;
+done
+n=$((n-1))
+
+numsamplesperdir=100
+source ./create_topofiles_params
+
+if [ "$weightedsamplesperdir" == "1" ]
+then
+	getsamplesperdir="getsamplesperdir_weighted"
+else
+	getsamplesperdir=getsamplesperdir
+fi
+if [ "$defaults" != "1" ]
+then
+	cat </dev/null >tmpfile0
+	cat </dev/null >tmpfile1
+	cat </dev/null >tmpfile2
+	cat </dev/null >tmpfile3
+	cat </dev/null >tmpfileerr
+	cat </dev/null > atleastone_ip
+
+	for ((i=1;i<=n;i++))
+	do
+		thisparam=${paramarray[$i]}
+		cat ${thisparam} | awk '{ if(d[$1]=="") {print $1; d[$1]=$1} } ' >>atleastone_ip
+	done
+	sort -u atleastone_ip >atleastone_ip_uniq
+
+	(
+	cat ${ipmaps} | sed 's/^/ipmap /'
+	cat atleastone_ip_uniq  
+	) | awk '{ 
+	if($1=="ipmap") dir[$2]=$3;
+	else {
+		if (dir[$1]=="0") print $1 >> "tmpfile0";
+		else if(dir[$1]=="1") print $1>>"tmpfile1";
+		else if(dir[$1]=="2") print $1>>"tmpfile2";
+		else if(dir[$1]=="3") print $1>>"tmpfile3";
+		else print $1, dir[$1] >>"tmpfileerr";
+		}
+	}'
+magiccut=1000
+nl0=`wc -l tmpfile0 | field 1`
+nl1=`wc -l tmpfile1 | field 1`
+nl2=`wc -l tmpfile2 | field 1`
+nl3=`wc -l tmpfile3 | field 1`
+
+if [ "${nl0}" -gt "${magiccut}" ]
+then
+	cat tmpfile0 | awk -v n=${nl0} -v m=${magiccut} '{
+	r=int (n/m);
+	if( NR % (r) == 1 || r==1) print ;
+	}' > tmpfile0small
+	cp tmpfile0small tmpfile0
+fi
+
+if [ "${nl1}" -gt "${magiccut}" ]
+then
+	cat tmpfile1 | awk -v n=${nl1} -v m=${magiccut} '{
+	r=int (n/m);
+	if( NR % (r) == 1 || r==1) print ;
+	}' > tmpfile1small
+	cp tmpfile1small tmpfile1
+fi
+if [ "${nl2}" -gt "${magiccut}" ]
+then
+	cat tmpfile2 | awk -v n=${nl2} -v m=${magiccut} '{
+	r=int (n/m);
+	if( NR % (r) == 1 || r==1) print ;
+	}' > tmpfile2small
+	cp tmpfile2small tmpfile2
+fi
+if [ "${nl3}" -gt "${magiccut}" ]
+then
+	cat tmpfile3 | awk -v n=${nl3} -v m=${magiccut} '{
+	r=int (n/m);
+	if( NR % (r) == 1 || r==1) print ;
+	}' > tmpfile3small
+	cp tmpfile3small tmpfile3
+fi
+
+
+cat < /dev/null > parammediansforfuture
+#  FOR EACH PARAM
+for ((i=1;i<=n;i++))
+do
+	echo -ne "\r port ${thisport} :: ${paramarray[$i]}                                 "
+	thisparam=${paramarray[$i]}
+
+	capacity=0; rtt=0; plr=0;psize=0;
+	isemg=`echo $thisparam | grep -i emg`
+	isbw=`echo $thisparam | grep -i bw`
+	isrtt=`echo $thisparam| grep -i rtt`
+	isplr=`echo $thisparam| grep -i plr`
+	ispsize=`echo $thisparam| grep -i psize`
+	if [ "$isemg" != "" ] || [ "$isbw" != "" ]
+	then
+		capacity=1
+	elif [ "$isrtt" != "" ]
+	then
+		rtt=1
+	elif [ "$ispsize" != "" ]
+	then
+		psize=1
+	else
+		plr=1
+	fi
+	cat < /dev/null > addparammedians
+	${getsamplesperdir} ${ipmaps} ${thisparam} 0 ${numsamplesperdir} > sample0
+	${getsamplesperdir} ${ipmaps} ${thisparam} 1 ${numsamplesperdir} > sample1
+	${getsamplesperdir} ${ipmaps} ${thisparam} 2 ${numsamplesperdir} > sample2
+	${getsamplesperdir} ${ipmaps} ${thisparam} 3 ${numsamplesperdir} > sample3
+	if [ "${harmonicmean_capacity}" == "1" ] && [ "$capacity" == "1" ]
+	then
+		harmonicmean sample0  | awk '{ printf "prm0=%.6f\n", $1}' > addparammedians
+		harmonicmean sample1  | awk '{ printf "prm1=%.6f\n", $1}' >> addparammedians
+		harmonicmean sample2  | awk '{ printf "prm2=%.6f\n", $1}' >> addparammedians
+		harmonicmean sample3  | awk '{ printf "prm3=%.6f\n", $1}' >> addparammedians
+	else
+
+		getpercentile sample0 50 | awk '{ printf "prm0=%.6f\n", $1}' > addparammedians
+		getpercentile sample1 50 | awk '{ printf "prm1=%.6f\n", $1}' >> addparammedians
+		getpercentile sample2 50 | awk '{ printf "prm2=%.6f\n", $1}' >> addparammedians
+		getpercentile sample3 50 | awk '{ printf "prm3=%.6f\n", $1}' >> addparammedians
+	fi
+
+	sample0lines=`wc -l sample0 | awk '{printf "%d",$1}'`
+	sample1lines=`wc -l sample1 | awk '{printf "%d",$1}'`
+	sample2lines=`wc -l sample2 | awk '{printf "%d",$1}'`
+	sample3lines=`wc -l sample3 | awk '{printf "%d",$1}'`
+	echo "lines0=0" >> addparammedians
+	echo "lines1=0" >> addparammedians
+	echo "lines2=0" >> addparammedians
+	echo "lines3=0" >> addparammedians
+	if [ "$sample0lines" == "0" ]
+	then
+		extract_offset $i ${defaultaparams0} | awk '{ printf "prm0=%.6f\n",$1}' >>addparammedians
+		echo "lines0=1" >> addparammedians
+	fi
+	if [ "$sample1lines" == "0" ]
+	then
+		extract_offset $i ${defaultaparams1} | awk '{ printf "prm1=%.6f\n",$1}' >> addparammedians
+		echo "lines1=1" >> addparammedians
+	fi
+	if [ "$sample2lines" == "0" ]
+	then
+		extract_offset $i ${defaultaparams2} | awk '{ printf "prm2=%.6f\n",$1}' >> addparammedians
+		echo "lines2=1" >> addparammedians
+	fi
+	if [ "$sample3lines" == "0" ]
+	then
+		extract_offset $i ${defaultaparams3} | awk '{ printf "prm3=%.6f\n",$1}' >> addparammedians
+		echo "lines3=1" >> addparammedians
+	fi
+
+	cat addparammedians >> parammediansforfuture
+	addparamdistribution_numbers ${ipmaps} tmpfile0 ${thisparam} > tmpfile0-tmp
+	addparamdistribution_numbers ${ipmaps} tmpfile1 ${thisparam} > tmpfile1-tmp
+	addparamdistribution_numbers ${ipmaps} tmpfile2 ${thisparam} > tmpfile2-tmp
+	addparamdistribution_numbers ${ipmaps} tmpfile3 ${thisparam} > tmpfile3-tmp
+	cat tmpfile0-tmp > tmpfile0
+	cat tmpfile1-tmp > tmpfile1
+	cat tmpfile2-tmp > tmpfile2
+	cat tmpfile3-tmp > tmpfile3
+	cat tmpfile0 | wc -l | awk '{ printf "%d\n" , $1 } ' > topofiledir0
+	cat tmpfile1 | wc -l | awk '{ printf "%d\n" , $1 } ' > topofiledir1
+	cat tmpfile2 | wc -l | awk '{ printf "%d\n" , $1 } ' > topofiledir2
+	cat tmpfile3 | wc -l | awk '{ printf "%d\n" , $1 } ' > topofiledir3
+	cat tmpfile0 | sed 's/^[^ ]* //' >> topofiledir0
+	cat tmpfile1 | sed 's/^[^ ]* //' >> topofiledir1
+	cat tmpfile2 | sed 's/^[^ ]* //' >> topofiledir2
+	cat tmpfile3 | sed 's/^[^ ]* //' >> topofiledir3
+done
+#  FOR EACH PARAM - DONE
+
+cat < /dev/null > iplist
+for ((i=1;i<=n;i++))
+do
+	thisparam=${paramarray[$i]}
+	cat ${thisparam} | awk '{ print $1 }' >> iplist
+
+done
+# WEIGHT-NOWEIGHT 
+export weight=${weight}
+if [ "$weight" != "0" ]
+then
+	echo -ne "\r assigning weights                           "
+	cat < /dev/null > tmpfile0-tmp
+	cat < /dev/null > tmpfile1-tmp
+	cat < /dev/null > tmpfile2-tmp
+	cat < /dev/null > tmpfile3-tmp
+	(
+	cat ${ipmaps} | sed 's/^/ipmap /'
+	cat iplist | sed 's/^/IP /'
+	cat tmpfile0
+	) | awk '{
+	if($1=="ipmap") n[$2]=$4;
+	else if($1=="IP") valid[$2]=1;
+	else {
+		if(valid[$1]==1){
+			maxt=n[$1]*ENVIRON["weight"];
+			for(i=1;i<=maxt;i++)
+				print >>"tmpfile0-tmp"
+			}
+		}
+	}'
+	(
+	cat ${ipmaps} | sed 's/^/ipmap /'
+	cat iplist | sed 's/^/IP /'
+	cat tmpfile1
+	) | awk '{
+	if($1=="ipmap") n[$2]=$4;
+	else if($1=="IP") valid[$2]=1;
+	else {
+		if(valid[$1]==1) {
+			maxt=n[$1]*ENVIRON["weight"];
+			for(i=1;i<=maxt;i++)
+				print >>"tmpfile1-tmp"
+			}
+		}
+	}'
+
+
+
+	(
+	cat ${ipmaps} | sed 's/^/ipmap /'
+	cat iplist | sed 's/^/IP /'
+	cat tmpfile2
+	) | awk '{
+	if($1=="ipmap") n[$2]=$4;
+	else if($1=="IP") valid[$2]=1;
+	else {
+		if(valid[$1]==1) {
+			maxt=n[$1]*ENVIRON["weight"];
+			for(i=1;i<=maxt;i++)
+				print >>"tmpfile2-tmp"
+			}
+		}
+	}'
+
+
+	(
+	cat ${ipmaps} | sed 's/^/ipmap /'
+	cat iplist | sed 's/^/IP /'
+	cat tmpfile3
+	) | awk '{
+	if($1=="ipmap") n[$2]=$4;
+	else if($1=="IP") valid[$2]=1;
+	else {
+		if(valid[$1]==1) {
+			maxt=n[$1]*ENVIRON["weight"];
+			for(i=1;i<=maxt;i++)
+				print >>"tmpfile3-tmp"
+			}
+		}
+	}'
+
+
+
+	cat tmpfile0-tmp > tmpfile0
+	cat tmpfile1-tmp > tmpfile1
+	cat tmpfile2-tmp > tmpfile2
+	cat tmpfile3-tmp > tmpfile3
+
+	cat tmpfile0 | wc -l | awk '{ printf "%d\n" , $1 } ' > topofiledir0
+	cat tmpfile1 | wc -l | awk '{ printf "%d\n" , $1 } ' > topofiledir1
+	cat tmpfile2 | wc -l | awk '{ printf "%d\n" , $1 } ' > topofiledir2
+	cat tmpfile3 | wc -l | awk '{ printf "%d\n" , $1 } ' > topofiledir3
+	cat tmpfile0 | sed 's/^[^ ]* //' >> topofiledir0
+	cat tmpfile1 | sed 's/^[^ ]* //' >> topofiledir1
+	cat tmpfile2 | sed 's/^[^ ]* //' >> topofiledir2
+	cat tmpfile3 | sed 's/^[^ ]* //' >> topofiledir3
+else # weight!=0
+	combine_rtt_bw_plr_numbers ${ipmaps} ${paramarray[1]} ${paramarray[2]} ${paramarray[3]} 0 800
+	cat rttcdf_bw_data_0 | awk '{ if(NR>1) print $1,$2,$3,1460.00 }' > tmpfile0
+	cat rttcdf_bw_data_1 | awk '{ if(NR>1) print $1,$2,$3,1460.00 }' > tmpfile1
+
+	cat tmpfile0 | wc -l | awk '{ printf "%d\n" , $1 } ' > topofiledir0
+	cat tmpfile1 | wc -l | awk '{ printf "%d\n" , $1 } ' > topofiledir1
+	cat tmpfile0  >> topofiledir0
+	cat tmpfile1  >> topofiledir1
+fi # weight==0
+
+# WEIGHT-NOWEIGHT DONE
+
+echo -ne "\r"
+
+
+cat topofiledir0 > rttcdf_bw_data_0 # client 0
+cat topofiledir1 > rttcdf_bw_data_1 # server 0
+cat topofiledir2 > rttcdf_bw_data_2 # client 1
+cat topofiledir3 > rttcdf_bw_data_3 # server 1
+else  # defaults != 1
+	echo "1" >rttcdf_bw_data_0
+	echo "1" >rttcdf_bw_data_1
+	echo "1" >rttcdf_bw_data_2
+	echo "1" >rttcdf_bw_data_3
+	echo $defaultaparams0 >>rttcdf_bw_data_0
+	echo $defaultaparams1 >>rttcdf_bw_data_1
+	echo $defaultaparams2 >>rttcdf_bw_data_2
+	echo $defaultaparams3 >>rttcdf_bw_data_3
+fi
+
+# for low bw paths we do not need plr too
+#to be there
+cp rttcdf_bw_data_0 rttcdf_bw_data_0fix
+cp rttcdf_bw_data_1 rttcdf_bw_data_1fix
+cp rttcdf_bw_data_2 rttcdf_bw_data_2fix
+cp rttcdf_bw_data_3 rttcdf_bw_data_3fix
+#
+for f in `seq 0 3`
+do
+	cat rttcdf_bw_data_${f}fix | awk '{
+	if(NR==1) {
+		print ;
+	}
+else {
+	if($2>100) {
+		print ;
+	}
+else {
+	printf "%.4f %.4f %.4f %.4f \n", $1, $2, 0.0, $4 ;
+}
+}
+}' > rttcdf_bw_data_${f}
+done 
+
+
+w0=`wc -l rttcdf_bw_data_0 | field 1`
+w1=`wc -l rttcdf_bw_data_1 | field 1`
+w2=`wc -l rttcdf_bw_data_2 | field 1`
+w3=`wc -l rttcdf_bw_data_3 | field 1`
+
+if [ "${w0}" -le "1" ]
+then
+	echo "1
+	5.00 100000.00 0.00 1480.00 " > rttcdf_bw_data_0
+fi
+
+
+if [ "${w1}" -le "1" ]
+then
+	echo "1
+	5.00 100000.00 0.00 1480.00 " > rttcdf_bw_data_1
+fi
+
+
+if [ "${w2}" -le "1" ]
+then
+	echo "1
+	5.00 100000.00 0.00 1480.00 " > rttcdf_bw_data_2
+fi
+
+
+if [ "${w3}" -le "1" ]
+then
+	echo "1
+	5.00 100000.00 0.00 1480.00 " > rttcdf_bw_data_3
+fi
+
+
+
+#   client_0  ( 0 )  ->   server_1  ( 3 )
+#   server_0  ( 1 )  <-   client_1  ( 2 )
+
+cat rttcdf_bw_data_0 > rttcdf_bw_data_client_0
+cat rttcdf_bw_data_2 > rttcdf_bw_data_client_1
+cat rttcdf_bw_data_1 > rttcdf_bw_data_server_0
+cat rttcdf_bw_data_3 > rttcdf_bw_data_server_1

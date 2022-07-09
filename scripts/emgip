@@ -1,0 +1,53 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:27 PDT 2008
+#
+###################################################################################
+
+if [ "$#" -lt "1" ]
+then
+	echo "Usage $0 <forconndata>"
+	exit
+fi
+
+tfile=$1
+
+
+estimatecapacity3 $tfile | grep kbps | awk '{ ip=$1; kbps=$3; if(kbps<100) kbps=100; if(kbps>=500000) kbps=500000; printf "%s %.3f %s %.4f\n", ip,kbps, $5, $2;}'  > capaestimatefile
+
+rttranges="100 95 90 75 50 10 5 0"
+
+massagecapacityestimates_oneway_twoway_rtt capaestimatefile rtt_5 > newcapafile
+getemgperhost newcapafile | awk '{ if ($2>10) print}' > allemgs 
+
+SECONDS=0
+iii=0
+
+vals_prctile allemgs emg ${rttranges}

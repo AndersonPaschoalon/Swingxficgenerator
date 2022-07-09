@@ -1,0 +1,131 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:31 PDT 2008
+#
+###################################################################################
+
+if [ "$#" -lt "2" ]
+then
+	echo "Usage: $0 <portsfile > <fh>"
+	exit
+fi
+pfile=$1
+fh=$2
+
+cat < /dev/null > specs.all.${fh}
+echo "# Documentation begin ----------------------------------------------------
+# start each new class with the line class <CLASSNAME>
+# for each parameter for a class there should be a newline
+# starting with param_<paramname>, for instance
+# param_RSP fixed 2000
+# this means that the response size is fixed at 2000 bytes.
+# Another way of specifying it is 
+# param_RSP randval min 2000 max 4000
+# this generates a random response size between 2000 and 4000 bytes every time
+# A final way to specify this is the following 
+# param_RSP file specs_param_RSPfile1 SEED 55
+# This says that generate the response sizes using the CDF specified int he
+# file specs_param_RSPfile1 and use 55 as a seed for the random number
+# generator.
+# The following is the format for the specs_param_RSPfile1 file
+# The first line should be the number of lines following it
+# Then each line should have a single integer value of the file size
+# The last line of this should have a junk class eg. class JUNK_like etc.
+# Documentation ends ----------------------------------------------------">>specs.all.${fh}
+
+for dirc in `echo 0 1 2`
+do
+numports=`cat ${pfile}| head -n 1|awk '{printf "%d",$2}'`
+allports=$((numports+1))
+for i in `seq 1 $allports`
+do
+	if [ "$i" == "$allports" ]
+	then
+		pval="othertcp"
+		pname="TCPOTHER"
+		portval="2222"
+	else
+		pval=`getportinfo ${pfile} $i 1`
+		pname=`getportinfo ${pfile} $i 3`
+		portval=${pval}
+	fi
+	if [ "$dirc" != "2" ]
+	then
+echo "class ${pname}${dirc}_like
+param_REQ file specs_param_REQ_${pval}_${fh}${dirc} SEED 2244
+param_RSP file specs_param_RSP_${pval}_${fh}${dirc} SEED 3433
+param_numpairs file specs_param_numpairs_${pval}_${fh}${dirc} SEED 9833
+param_numconn file specs_param_numconn_${pval}_${fh}${dirc} SEED 3133
+param_interRRE file specs_param_interRRE_${pval}_${fh}${dirc} SEED 333
+param_interconn file specs_param_interconn_${pval}_${fh}${dirc} SEED 333
+#param_interconn fixed 100
+param_numrre file specs_param_numrre_${pval}_${fh}${dirc} SEED 3313
+param_transport fixed 1
+param_serverthink fixed 0
+#param_userthink fixed 0
+param_userthink file specs_param_reqthink_${pval}_${fh}${dirc} SEED 3313
+pkt_size min 1400 max 1400
+pky_time min 100 max 100
+param_port fixed $((20000+portval))" >>specs.all.${fh}
+else
+echo "class ${pname}_like
+param_REQ file specs_param_REQ_${pval}_${fh} SEED 2244
+param_RSP file specs_param_RSP_${pval}_${fh} SEED 3433
+param_numpairs file specs_param_numpairs_${pval}_${fh} SEED 9833
+param_numconn file specs_param_numconn_${pval}_${fh} SEED 3133
+param_interRRE file specs_param_interRRE_${pval}_${fh} SEED 333
+param_interconn file specs_param_interconn_${pval}_${fh} SEED 333
+param_numrre file specs_param_numrre_${pval}_${fh} SEED 3313
+param_transport fixed 1
+param_serverthink fixed 0
+#param_userthink fixed 0
+param_userthink file specs_param_reqthink_${pval}_${fh} SEED 3313
+pkt_size min 1400 max 1400
+pky_time min 100 max 100
+param_port fixed $((20000+portval))" >>specs.all.${fh}
+
+fi
+done
+
+done # for dirc 0/1
+#echo "class TCPOTHER_like
+#param_REQ file specs_param_REQ_othertcp_${fh} SEED 444
+#param_RSP file specs_param_RSP_othertcp_${fh} SEED 4433
+#param_numpairs file specs_param_numpairs_othertcp_${fh} SEED 3343
+#param_numconn file specs_param_numconn_othertcp_${fh} SEED 313
+#param_interRRE file specs_param_interRRE_othertcp_${fh} SEED 3233
+#param_interconn file specs_param_interconn_othertcp_${fh} SEED 3233
+#param_numrre file specs_param_numrre_othertcp_${fh} SEED 3381
+#param_transport fixed 1
+#param_serverthink fixed 0
+#param_userthink fixed 0
+#pkt_size min 1400 max 1400
+#pky_time min 100 max 100
+#param_port fixed 22222" >>specs.all.${fh}

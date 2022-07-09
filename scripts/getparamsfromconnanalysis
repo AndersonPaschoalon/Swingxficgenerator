@@ -1,0 +1,471 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:28 PDT 2008
+#
+###################################################################################
+
+
+if [ "$#" -lt "3" ]
+then
+	echo "Usage: $0 <ipmaps> <conninfofile> <app> <fh> or"
+	echo "Usage: $0 <conninfofile> <app> <fh>"
+	exit
+fi
+
+invokename=`basename $0`
+
+if [ "$invokename" == "getparamsfromconnanalysis" ]
+then
+	conninfofile=$1
+	app=$2
+	fh=$3
+	bidirectional=0
+	if [ "$#" -lt "3 " ]
+	then
+		echo "not enuf arguments"
+		exit
+	fi
+elif [ "$invokename" == "getparamsfromconnanalysis_perdir" ]
+then
+	ipmaps=$1
+	conninfofile=$2
+	app=$3
+	fh=$4
+	bidirectional=1
+	if [ "$#" -lt "4 " ]
+	then
+		echo "not enuf arguments"
+		exit
+	fi
+else
+	echo " unknown invocation $invokename $0"
+	exit
+fi
+
+app=${app}_${fh}
+
+newcode=0
+
+
+# GLOBAL VARIABLES
+
+TMOUTRRESTART=60; 
+MAXRRE=10; 
+TMOUTRRE=60 
+TMOUTRRE2=60; 
+TMOUTCONNLATESTART=1 ; 
+CONNLATESTART=1  ; # after end of one conn at max $CONNLATESTART secs can pass
+
+MAXNUMRRE=10; 
+MAXNUMRRE=100; 
+MAXNUMCONN=100; 
+MAXNUMPAIRS=100;
+MAXNUMPAIRS=200; 
+TMOUTNEWRRE=300; # it two RREs are separated by this then they still belong to the same session
+TMOUTNEWCONN=2; # if start times two consec conns are separated by this then they still belong to the same RRE
+MININTERRRE=2;
+MININTERCONN=1;
+MAXINTERRRE=1; 
+MAXINTERCONN=1; 
+MAXINTERCONN=30;
+MAXINTERRRE=300;
+MAXCONNLATESTART=5;
+MAXCONNLATESTART=2; 
+SESStimeout=30;
+SESStimeout=300; 
+
+
+# we multiple interrre by 1000 so that the output value is in milliseconds
+
+export CONNLATESTART=$CONNLATESTART
+export MAXRRE=$MAXRRE
+export TMOUTRRESTART=$TMOUTRRESTART
+export MAXNUMRRE=$MAXNUMRRE
+export TMOUTRRE=$TMOUTRRE
+export TMOUTRRE2=$TMOUTRRE2
+export MAXNUMCONN=$MAXNUMCONN
+export MAXNUMPAIRS=$MAXNUMPAIRS
+export TMOUTNEWCONN=$TMOUTNEWCONN
+export TMOUTNEWRRE=$TMOUTNEWRRE
+export TMOUTCONNLATESTART=$TMOUTCONNLATESTART
+export MININTERRRE=$MININTERRRE
+export MININTERCONN=$MININTERCONN
+export MAXINTERCONN=$MAXINTERCONN
+export MAXINTERRRE=$MAXINTERRRE
+export MAXCONNLATESTART=$MAXCONNLATESTART
+export SESStimeout=$SESStimeout
+
+if [ "$bidirectional" == "1" ]
+then
+	for i in `echo 0 1`
+	do
+		rm -f testscp_${app}${i};
+		rm -f param_numpairs_${app}${i};
+		rm -f param_REQ_${app}${i};
+		rm -f param_RSP_${app}${i};
+		rm -f param_numconn_${app}${i};
+		rm -f param_interRREinitial_${app}${i};
+		rm -f param_numrre_${app}${i};
+		rm -f param_clientsessips_${app}${i};
+		rm -f param_REQtm_${app}${i};
+		rm -f param_RSPtm_${app}${i};
+		rm -f param_serverconnips_${app}${i};
+		rm -f param_sessstart_${app}${i};
+		rm -f param_interconn_${app}${i};
+		rm -f param_reqthinkinitial_${app}${i};
+
+
+		rm -f testscp_${app}${i}ip;
+		rm -f param_numpairs_${app}${i}ip;
+		rm -f param_REQ_${app}${i}ip;
+		rm -f param_RSP_${app}${i}ip;
+		rm -f param_numconn_${app}${i}ip;
+		rm -f param_interRREinitial_${app}${i}ip;
+		rm -f param_numrre_${app}${i}ip;
+		rm -f param_clientsessips_${app}${i}ip;
+		rm -f param_serverconnips_${app}${i}ip;
+		rm -f param_sessstart_${app}${i}ip;
+		rm -f sessend_${app}${i}ip;
+		rm -f param_interconn_${app}${i}ip;
+		rm -f param_reqthinkinitial_${app}${i}ip;
+	done
+else
+	rm -f testscp_${app};
+	rm -f param_numpairs_${app};
+	rm -f param_REQ_${app};
+	rm -f param_RSP_${app};
+	rm -f param_numconn_${app};
+	rm -f param_interRREinitial_${app};
+	rm -f param_numrre_${app};
+	rm -f param_clientsessips_${app};
+	rm -f param_serverconnips_${app};
+	rm -f param_sessstart_${app};
+	rm -f param_interconn_${app};
+	rm -f param_REQtm_${app};
+	rm -f param_RSPtm_${app};
+	rm -f param_reqthinkinitial_${app};
+
+	rm -f testscp_${app}ip;
+	rm -f param_numpairs_${app}ip;
+	rm -f param_REQ_${app}ip;
+	rm -f param_RSP_${app}ip;
+	rm -f param_numconn_${app}ip;
+	rm -f param_interRREinitial_${app}ip;
+	rm -f param_numrre_${app}ip;
+	rm -f param_clientsessips_${app}ip;
+	rm -f param_serverconnips_${app}ip;
+	rm -f param_sessstart_${app}ip;
+	rm -f param_reqthinkinitial_${app}ip;
+	rm -f sessend_${app}ip;
+	rm -f param_interconn_${app}ip;
+fi
+
+
+
+(
+	if [ "$bidirectional" == "1" ]
+	then
+		cat ${ipmaps} | sed 's/^/ipmap /'
+	fi
+
+	cat ${conninfofile} | grep -v "PAIRS 0"| sed 's/\(.*\) SYN \(.*\) \(PAIRS [0-9]*\) REQ \([^ ]*\) \([^ ]*\) \(.*\) \(FIN .*\)/\1 SYN \5 \7 \3 REQ \4 \5 \6/'  | grep -v "#" | filtermaxnumpairs - $MAXNUMPAIRS | sort -k 1,1 -k3,3 -k 6,6n -k8,8n
+
+) |  gawk  -v newcode=$newcode -v app=$app -v TMOUTRRESTART=$TMOUTRRESTART -v TMOUTRRE=$TMOUTRRE -v latestarttime=$latestarttime -v TMOUTRRE2=$TMOUTRRE2 -v bidirectional=${bidirectional} 'BEGIN {
+debug=0;
+sessbytes=0;sessclientbytes=0;sessserverbytes=0; prevflow=""; numrre=0; numconn=0; } { 
+skipthisline=0;
+if(bidirectional==1) {
+if($1=="ipmap") {
+dir[$2]=$3;
+if($3=="")
+{
+	dir[$2]=1
+}
+skipthisline=1
+		} else {
+		skipthisline=0;
+		thisdir=dir[$1];
+		if(thisdir=="") thisdir=1;
+		if(thisdir!=1 && thisdir!=0) {
+		print "weird dir " thisdir;
+		exit;
+	}
+}
+	}
+else thisdir="";
+
+	if (skipthisline!=1) {
+
+
+	if (debug==1) {
+	print "#####################################################";
+	print "------------- input line begins ----------------------";
+	print $0 ; 
+	print "-------------- input line ends -----------------------";
+}
+# 
+# before 
+#10.0.0.10 1220 10.0.0.1 80 SYN 57871.233234 PAIRS 1 REQ 1201 57871.417969 57871.417969 RSP 21253 57871.679688 57872.910156 FIN 57872.910156 57872.910156
+#   1       2      3     4   5      6          7   8  9   10      11          12        13     14     15          16          17     18          19
+#
+#  after
+# 10.0.0.10 1220 10.0.0.1 80 SYN 57871.233234 FIN 57872.910156 57872.910156 PAIRS 1 REQ 1201 57871.417969 57871.417969 RSP 21253 57871.679688 57872.910156
+#    1        2      3     4  5        6       7       8          9           10  11 12  13    14            15         16    17      18          19
+#
+#initialization
+srcip        =        $1;
+srcport      =        $2;
+dstip        =        $3;
+dstport      =        $4;
+flowid       =        srcip"#"dstip;
+
+syn          =        $6;
+finstart     =        $8;
+finend       =        $9;
+pairs        =        $11;
+adjust       =        0;
+
+if(pairs<ENVIRON["MAXNUMPAIRS"]) {
+print pairs >> "param_numpairs_"app""thisdir;
+print srcip " "pairs >> "param_numpairs_"app""thisdir"ip";
+		} else {
+		print ENVIRON["MAXNUMPAIRS"] >> "param_numpairs_"app""thisdir;
+		print srcip " " ENVIRON["MAXNUMPAIRS"] >> "param_numpairs_"app""thisdir"ip";
+	}
+	thisconnreqs=0;
+	for(i=1;i<=NF;i++) {
+	if($i=="REQ") {
+	toprintreq=max($(i+1),1);
+	printf "%.6f\n", $(i+3) - $(i+2) >>"param_REQtm_"app""thisdir;
+	print toprintreq >> "param_REQ_"app""thisdir;
+	print srcip " " toprintreq >> "param_REQ_"app""thisdir"ip";
+	thisconnreqs++;
+	if(thisconnreqs>1) {
+	printf "%d \n", 1000*($(i+2) - rsptime) >> "param_reqthinkinitial_"app""thisdir;
+	printf "%d %s %s\n",  1000*($(i+2) - rsptime), srcip, dstip >> "param_reqthinkinitial_"app""thisdir"ip";
+	if(debug==1 && thisconnreqs>1)
+	printf "reqthink %d %s %s\n",  1000*($(i+2) - rsptime), srcip, dstip ;
+
+}
+			} else if($i=="RSP"){
+			toprintrsp=max($(i+1),1);
+			printf "%.6f\n", $(i+3) - $(i+2) >>"param_RSPtm_"app""thisdir;
+			print toprintrsp >> "param_RSP_"app""thisdir;
+			print dstip " " toprintrsp >> "param_RSP_"app""thisdir"ip";
+			rsptime=$(i+3);
+		}
+	}
+	if (debug==1) {
+	print " previd : " previd " flowid : " flowid " syn " syn " fin " finstart" pairs " pairs;
+}
+# scan through the list of req/resp pairs 
+# as you keep scanning maintain a list of current numpairs.
+# numpairs is taken care of using the filtermaxnumpairs script with the argument $MAXNUMPAIRS
+# so what we have now is a file of connections and we need to
+# See if its a new/old flow
+# If it is old then
+# if it is old or new rre
+# If it is oldrre then numconn++
+# whenever that exceeds the limit, increase treat it as a new connection
+
+if(previd!=flowid) {
+if(debug==1)
+print " new flow ";
+
+/* A new flow so check if there are old flows */
+if(NR!=1) {
+if(debug==1) {
+
+
+print " old flows  numconn: " numconn "previp " previp;
+				}
+				print numconn >> "param_numconn_"app""prevdir;
+				print previp" "numconn >> "param_numconn_"app""prevdir"ip";
+				print numrre >> "param_numrre_"app""prevdir;
+				print previp" "numrre >> "param_numrre_"app""prevdir"ip";
+			}
+################## NEW FLOW #############################
+			/* initialise for new flow */
+			#numconn=0; rrestart=0; rreend=0; numrre=0;
+			rrestart=syn		; sessstart=syn;
+			rreend=finend		; sessend = finend;
+			numconn=1			; numrre=1;
+			serverip[dstip]++	; clientip[srcip]++;
+
+			print syn >> "param_sessstart_"app""thisdir;
+			print srcip" "syn >> "param_sessstart_"app""thisdir"ip";
+			prevsyn=syn;
+		} else {
+################## OLD FLOW #############################
+		/* Old flow */
+		if( (( syn - rreend )<ENVIRON["MAXCONNLATESTART"]) &&((syn - prevsyn) <ENVIRON["MAXINTERCONN"]) && (numconn<ENVIRON["MAXNUMCONN"] )) {
+		if(debug==1)
+		print " new conn in same rre with numconn " numconn;
+
+################## NEW CONN SAME RRE ####################
+		numconn++;
+		rreend=max(rreend, finend);
+		interconn=(syn - prevsyn);
+		interconn=max(interconn,0);
+		printf "%d\n", interconn*1000 >> "param_interconn_"app""thisdir;
+		print srcip" "interconn*1000 >> "param_interconn_"app""thisdir"ip";
+		if (debug==1)
+		print "interconn msec "  srcip " " interconn*1000;
+		prevsyn=syn;
+		sessend=rreend;
+	} else if (  ((syn - rreend)<ENVIRON["MAXINTERRRE"])  && (numrre<ENVIRON["MAXNUMRRE"] ) && ((syn - sessstart)< ENVIRON["SESStimeout"])  ) {
+	if(debug==1) {
+	print " syn " syn " rreend " rreend;
+	print " syn - prev syn " syn - prevsyn " MAXINTERCONN " ENVIRON["MAXINTERCONN"];
+	print " numconn " numconn " MAXNUMCONN " ENVIRON["MAXNUMCONN"];
+}
+################## NEW RRE SAME SESS ####################
+
+# new conn is not in same rre but should be soon enuf to be put
+# under same sess diff rre
+if(debug==1)
+print " same sess new rre numrre "numrre;
+/* take care of old rre */
+if(debug==1) {
+print " old rre numconn " numconn " rrestart " rrestart " rreend " prevfin;
+				}
+				print numconn >> "param_numconn_"app""thisdir;
+				print srcip" "numconn >> "param_numconn_"app""thisdir"ip";
+				interrre=syn - rreend;
+
+				interrre=max(interrre,0);
+				printf "%d\n", interrre*1000 >> "param_interRREinitial_"app""thisdir;
+				print interrre*1000 " "srcip " " srcip >> "param_interRREinitial_"app""thisdir"ip";
+				numrre++;
+				numconn=1;
+				rrestart=syn;
+				rreend=finend;
+				sessend=rreend;
+			} else {
+			if(debug==1)
+			print " new sess " ; 
+			print numconn >> "param_numconn_"app""thisdir;
+			print srcip" "numconn >> "param_numconn_"app""thisdir"ip";
+			print numrre >> "param_numrre_"app""thisdir;
+			print srcip" "numrre >> "param_numrre_"app""thisdir"ip";
+			sessstart=syn		; rrestart=syn;
+			sessend=finend		; rreend=sessend;
+			numconn=1			; numrre=1;
+			serverip[dstip]++	; clientip[srcip]++;
+
+			print syn >> "param_sessstart_"app""thisdir;
+			print srcip" "syn >> "param_sessstart_"app""thisdir"ip";
+
+		}
+	}
+	if(debug==1)
+	if(bidirectional==1 && thisdir=="") print "---------------fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff---------------------------";
+	previd=flowid;
+	prevfin=finstart;
+	previp=srcip;
+	prevdir=thisdir;
+	prevsyn=syn;
+}
+
+} END {
+if(debug==1) {
+print "--- END ---";
+print "NR  ",NR;
+print "numconn ", numconn , " previp " previp;
+print " numrre  ", numrre, " previp " previp;
+
+	}
+	print NR > "param_totalnumconn_"app;
+	print numconn >> "param_numconn_"app""thisdir;
+	print previp" "numconn >> "param_numconn_"app""thisdir"ip";
+	print numrre >> "param_numrre_"app""thisdir;
+	print previp" "numrre >> "param_numrre_"app""thisdir"ip";
+
+	for(ips in serverip) {
+	serverdir=dir[ips];
+	print ips , serverip[ips] >> "param_serverconnips_"app""serverdir  ;
+}
+for (ips in clientip) {
+clientdir=dir[ips];
+print ips, clientip[ips] >> "param_clientsessips_"app""clientdir;
+	}
+
+} function max(a,b) {
+if(a>b) return a;
+	else return b;
+	} function min(a,b) {
+	if(a<b) return a;
+else return b;
+}'
+    
+
+if [ "$bidirectional" == "1" ]
+then
+	for params in `echo reqthink interRRE`
+	do
+		for direction in `seq 0 1`
+		do
+			if ! test -f  param_${params}initial_${app}${direction}
+			then
+				wlines=0
+			else
+				wlines=`wc -l param_${params}initial_${app}${direction} | field 1`
+			fi
+			if [ "${wlines}" -lt "1" ]
+			then
+				echo "1" > param_${params}initial_${app}${direction}
+				echo "1 0.0.0.0" > param_${params}initial_${app}${direction}ip;
+			fi
+		done
+
+		cp param_${params}initial_${app}0 param_${params}_${app}0;
+		cp param_${params}initial_${app}1 param_${params}_${app}1;
+		cp param_${params}initial_${app}0ip param_${params}_${app}0ip;
+		cp param_${params}initial_${app}1ip param_${params}_${app}1ip;
+	done
+else
+	for params in `echo reqthink interRRE`
+	do
+			if ! test -f  param_${params}initial_${app}
+			then
+				wlines=0
+			else
+				wlines=`wc -l param_${params}initial_${app} | field 1`
+			fi
+			if [ "$wlines" -lt "1" ]
+			then
+				echo "1" > param_${params}initial_${app}
+				echo "1 0.0.0.0" > param_${params}initial_${app}ip
+			fi
+
+		cp param_${params}initial_${app} param_${params}_${app};
+		cp param_${params}initial_${app}ip param_${params}_${app}ip;
+	done
+fi

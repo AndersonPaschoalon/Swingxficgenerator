@@ -1,0 +1,88 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:31 PDT 2008
+#
+###################################################################################
+
+
+if [ "$#" -lt "4" ]
+then
+	echo "Usage: $0 <timesdelay> <timeskbps> <timesplr> <timespsize>"
+	exit
+fi
+
+timesdelay=$1
+timeskbps=$2
+timesplr=$3
+timespsize=$4
+
+#times is  t_a_c
+# if old times is f then new times will be
+# f*t +a 
+# Thus to multiply, send t_0_0
+# to add send 1_a_0
+# to sub with const send 0_0_c
+
+for seqnum in `seq 0 3`
+do
+	cat rttcdf_bw_data_${seqnum} | awk  -v timesdelay=${timesdelay} -v timespsize=${timespsize} -v timesplr=${timesplr} -v timeskbps=${timeskbps} ' BEGIN {
+		split(timesdelay, delay,/t/);
+		split(timeskbps,kbps,/t/);
+		split(timesplr,plr,/t/);
+		split(timespsize,psize,/t/);
+		if (delay[2]=="") {
+			delay[2]=delay[1];
+			delay[1]=0;
+		}
+		if (kbps[2]=="") {
+			kbps[2]=kbps[1];
+			kbps[1]=0;
+		}
+		if (plr[2]=="") {
+			plr[2]=plr[1];
+			plr[1]=0;
+		}
+		if (psize[2]=="") {
+			psize[2]=psize[1];
+			psize[1]=0;
+		}
+	}{
+		
+		if(NR==1) print ;
+		else
+		printf "%.3f %.3f %.6f %5d \n", $1*delay[1]+delay[2] , $2*kbps[1]+kbps[2], $3*plr[1]+plr[2], $4*psize[1]+psize[2];
+	}' > tmptopofile${seqnum}
+	cp tmptopofile${seqnum} rttcdf_bw_data_${seqnum}
+done
+
+cat rttcdf_bw_data_0 > rttcdf_bw_data_client_0
+cat rttcdf_bw_data_2 > rttcdf_bw_data_client_1
+cat rttcdf_bw_data_1 > rttcdf_bw_data_server_0
+cat rttcdf_bw_data_3 > rttcdf_bw_data_server_1

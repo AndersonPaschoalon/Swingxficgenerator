@@ -1,0 +1,14 @@
+* Should I have a separate generate jobs?
+* What about JOBVARIABLES?
+
+I think the easy answer to both of those is yes...
+========================
+need TOPOHOME in masterscript
+
+no udp support
+
+no killallinsecs supported so far
+
+want to trap ctrl-c in runswingexpt.sh
+
+try to remove doall-udp

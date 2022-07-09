@@ -1,0 +1,158 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:30 PDT 2008
+#
+###################################################################################
+# output assigned_topo_with_clients_and_link_specs.graph
+if [ "$#" != "2" ]
+then
+    echo "Usage: $0 -f <spec_filename>"
+	exit;
+fi
+
+singlequeue=0;# ie. same qlen for all?
+while [ "$1" != "" ]
+do
+	case $1 in
+		-f) shift;
+		spec_filename=$1;
+		;;
+		*) echo "Usage: $0 -f <spec_filename> ";
+		;;
+
+	esac
+	shift
+done
+qslotedgemin=0;
+source $spec_filename
+num_nodes=`echo $pipes | wc -w `
+num_clients=0
+
+echo "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>
+<topology>"
+
+
+nodecnt=0
+
+maxdst=-1
+maxsrc=-1
+
+
+echo "  <edges>"
+edgenum=0
+for edge_spec in `echo $pipes`
+do
+	src=`echo $edge_spec | cut -d '_' -f1`
+	dst=`echo $edge_spec | cut -d '_' -f2`
+	delay=`echo $edge_spec | cut -d '_' -f3`
+	bw=`echo $edge_spec | cut -d '_' -f4`
+	plr=`echo $edge_spec | cut -d '_' -f5`
+	mqueue=`echo "${bw} ${delay}" | awk '{ printf "%f", (1+2*$1*$2/8/1500)}' | sed 's/\..*//'`
+	if [ "$mqueue" == "" ] || [ "$mqueue" == "0" ]
+	then
+		mqueue=${qslot}
+	elif [ "$mqueue" -lt "$qslot" ]
+	then
+		mqueue=${qslot}
+	fi
+	if [ "$singlequeue" == "1" ]
+	then
+		echo "   <edge dbl_kbps=\"$bw\" dbl_plr=\"$plr\" int_dst=\"$dst\" int_delayms=\"$delay\" int_src=\"$src\" int_idx=\"$edgenum\" int_qlen=\"$qslot\"/>"
+	else
+		echo "   <edge dbl_kbps=\"$bw\" dbl_plr=\"$plr\" int_dst=\"$dst\" int_delayms=\"$delay\" int_src=\"$src\" int_idx=\"$edgenum\" int_qlen=\"$mqueue\"/>"
+	fi
+	edgenum=$((edgenum+1))
+	if [ "$src" -gt "$maxsrc" ] 
+	then
+		maxsrc=$src
+	fi
+
+	if [ "$dst" -gt "$maxdst" ] 
+	then
+		maxdst=$dst
+	fi
+done
+# more edges...
+
+if [ "$maxsrc" -gt "$maxdst" ]
+then
+	node_num=$maxsrc
+else
+	node_num=$maxdst
+fi
+nodemax=$node_num
+for cl in `echo $clients`
+do
+	nodemax=$((nodemax+1))
+	printedges $cl $nodemax $edgenum $qslot $qslotedgemin
+	edgenum=$((edgenum+2))
+
+done
+echo "  </edges>"
+
+if [ "$maxsrc" -gt "$maxdst" ]
+then
+	node_num=$maxsrc
+else
+	node_num=$maxdst
+fi
+
+echo "  <vertices>"
+
+nodecnt=0
+while [ "$nodecnt" -le "$node_num" ]
+do
+	echo "   <vertex int_idx=\"$nodecnt\" dbl_x=\"4444\" role=\"transit\" dbl_y=\"5555\" />"
+
+
+	nodecnt=$((nodecnt+1))
+done
+
+
+vn_num=0
+for cl in `echo $clients`
+do
+	printvertices $cl ${vn_num} ${nodecnt}
+	vn_num=$((vn_num+1))
+	nodecnt=$((nodecnt+1))
+done
+
+
+
+
+
+echo "  </vertices>"
+echo "  <specs xmloutbug=\"workaround\">
+<transit-transit dbl_plr=\"0\" dbl_kbps=\"100000\" int_delayms=\"1\" int_qlen=\"100 \" />
+<client-stub dbl_plr=\"0\" dbl_kbps=\"10000\" int_delayms=\"1\" int_qlen=\"100\" />
+<stub-stub dbl_plr=\"0\" dbl_kbps=\"10000\" int_delayms=\"1\" int_qlen=\"100\" />
+<stub-transit dbl_plr=\"0\" dbl_kbps=\"100000\" int_delayms=\"1\" int_qlen=\"100\" />
+</specs>
+</topology>"

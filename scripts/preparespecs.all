@@ -1,0 +1,104 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:32 PDT 2008
+#
+###################################################################################
+
+if [ "$#" -lt "4" ]
+then
+	echo "Usage: $0 <app> <prefix> <totaltime> <starttime>"
+	exit
+fi
+
+app=$1
+prefix=$2
+totaltime=$3
+starttime=$4
+
+app=${app}_${prefix}
+
+uwash=`grep uwash $0`
+if [ "$uwash" != "" ]
+then
+	uwash="uwash"
+else
+	uwash=""
+fi
+
+
+
+for i in `echo param_numpairs_${app} param_REQ_${app} param_RSP_${app} param_numconn_${app} param_numrre_${app} param_interconn_${app}`
+do
+	numlines=`wc -l $i | awk '{ print $1 }'`
+	if [ "$numlines" == "" ]
+	then
+		numlines=0
+	fi
+	echo -ne "\r $i $numlines      "
+	echo $numlines > specs_${i}
+	sort -rn $i | awk '{ printf "%d\n", $1}' >> specs_${i}
+done
+for i in `echo param_interRRE_${app} param_reqthink_${app} `
+do
+	numlines=`wc -l $i | awk '{ print $1 }'`
+	echo -ne "\r  $i $numlines     "
+	echo $numlines > specs_${i}
+	sort -rn $i | awk '{ printf "%d\n", $1}' >> specs_${i}
+done
+
+
+
+
+
+
+cat param_clientsessips_${app}| sort -nk 2 | awk 'BEGIN { s[0]=0 }
+{s[NR]=s[NR-1] +$2 }
+END {
+	for( nrs in s )
+	{
+		printf "%2.4f %2.4f \n", nrs/NR, s[nrs]/s[NR]; 
+	}
+}'|sort -n > specs_param_clientdist_${app}
+
+
+
+cat param_serverconnips_${app} | sort -nk 2 | awk 'BEGIN { s[0]=0 }
+{s[NR]=s[NR-1] +$2 }
+END {
+	for( nrs in s )
+	{
+		printf "%2.4f %2.4f \n", nrs/NR, s[nrs]/s[NR]; 
+	}
+}'|sort -n > specs_param_serverdist_${app}
+
+
+getsessstartcdf param_sessstart_${app} ${totaltime} ${starttime} > specs_param_sessstartcdf_${app}
+echo -ne "\r                                                           "
+echo -ne "\r"

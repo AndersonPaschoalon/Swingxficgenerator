@@ -1,0 +1,90 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:28 PDT 2008
+#
+###################################################################################
+
+#          rq1                  rq2
+# h1 -------------->      -------------> h2
+#					link
+#  <-------------       < -------------
+#        rsp1                   rsp2
+# get rtt values per host
+# SYN_SYNACK is  rq2+rsp2
+# SYNACK_ACKSYN is rsp1+rq1
+# REQ_RSP is rq2+rsp2
+# RSP_REQ is rsp1+rq1
+
+if [ "$#" -lt "1" ]
+then
+	echo "Usage $0 <tologfile>"
+	exit
+fi
+
+tologfile=$1
+
+cat ${tologfile} | grep TIME | awk '{ if($4>0 && $4<1.5) print }'  | awk '{ 
+	tm=""
+	if($3=="SYN_SYNACK" ) {
+		ip=$8;
+		tm=$4*1000;
+		#print "tm is " tm >> "DEBUGfile";
+	} 
+	else if($3=="SYNACK_ACKSYN" ) {
+		ip=$6;
+		tm=$4*1000;
+	}
+	if(tm!="" && ip!="") {
+		split(ip,iparr,/\./);
+		if(iparr[4]!="" && tm!=0){
+			host=iparr[1]"."iparr[2]"."iparr[3]"."iparr[4];
+		print host, tm;
+		}
+	}
+
+}' | sort -k 1,1 | awk '{
+	host=$1;
+	tm=$2;
+	if(host!=prevhost) {
+		if(prevhost!="") {
+		if(count>=2)	print prevhost" "count" "mintm" "tms;
+		}
+		count=1;
+		tms=tm;
+		mintm=tm;
+	} else {
+		count++;
+		if(tm<mintm) mintm=tm;
+		tms=tms" "tm;
+	}
+	prevhost=host;
+} END {
+	if(count>=2)		print prevhost" "count" "mintm" "tms;
+}'

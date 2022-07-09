@@ -1,0 +1,98 @@
+#!/bin/bash  
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:32 PDT 2008
+#
+###################################################################################
+
+source ./params.file
+
+function quitscript {
+	echo "Error starting all the listeners "
+	cat ${common_list_file} | grep -i error
+	exit -1
+}
+
+cat < /dev/null > ${common_list_file}
+#cat < /dev/null > listener_file
+i=0
+s=0
+while read this_line
+do
+	set `echo $this_line`
+	class=$1
+	vnnum=$2
+	portnum=$3
+	transport=$4
+	#	echo starting it $vnnum $portnum
+	mkdir -p ${tmpoutputdir}
+	vnrun -d $vnnum $modelfile ${listen_script} $portnum $class $transport $vnnum || exit $?
+	i=$((i+1))
+	#	echo $vnnum >> listener_file
+	if [ "$s" == "200" ]
+	then
+		s=0;
+		echo -ne "\r sleep 1 for gexec ... $SECONDS secs ${i} gexecs issued "
+		sleep 1
+
+	fi
+	s=$((s+1))
+	#fi
+
+done
+echo -ne "\r                                                                      \r"
+numlines=0;
+SECONDS=0
+sleep 5
+while [ "$numlines" -lt "$i" ]
+do
+	error=`grep -i error ${common_list_file}`
+	if [ "$error" != "" ]
+	then
+		quitscript
+	fi
+	echo -n total $i listeners, $numlines have started
+	echo -n " " sleep 5 for all listeners to start... time waiting "$SECONDS K "
+	if [ "$SECONDS" -gt "60 " ]
+	then
+	#	listenersnotyetstarted
+		quitscript
+	fi
+	sleep 5
+	numlines=`cat ${common_list_file} | sort -u |  wc -l | awk '{ print $1 }' `
+	echo -ne "\r"
+done
+
+error=`grep -i error ${common_list_file}`
+if [ "$error" != "" ]
+then
+	quitscript
+fi
+echo   total $i listeners, $numlines have started "[K"
+

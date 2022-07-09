@@ -1,0 +1,3 @@
+AUTOMAKE_OPTIONS = foreign
+SUBDIRS = scripts src
+EXTRA_DIST = README  hosts.xml  COPYING LICENSE AUTHORS Changelog

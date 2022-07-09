@@ -1,0 +1,99 @@
+##!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:31 PDT 2008
+#
+###################################################################################
+
+if [ "$#" -lt "4" ]
+then
+	echo "Usage: $0 <reqthinkinitialip> <rttfile> <ipmaps> <dir>"
+	echo "dir = 0/1/2"
+	exit
+fi
+
+
+reqthinkinitialip=$1
+rttfile=$2
+ipmaps=$3
+dir=$4
+
+meanval0=`getsamplesperdir_weighted ${ipmaps} ${rttfile} 0 1000 | getmedian - 50`
+meanval1=`getsamplesperdir_weighted ${ipmaps} ${rttfile} 1 1000 | getmedian - 50`
+meanval=`echo ${meanval0} ${meanval1} | awk '{ printf ( $1+$2)/2 }'`
+
+if [ "$dir" == "0" ]
+then
+	tosendmean=${meanval0}
+elif [ "$dir" == "1" ]
+then
+	tosendmean=${meanval1}
+else
+	tosendmean=${meanval}
+fi
+
+newipname=`echo ${reqthinkinitialip}| sed 's/initial//' `
+newname=`echo ${reqthinkinitialip}| sed 's/initial//' | sed 's/ip$//'`
+rm -f ${newipname}
+rm -f ${newname}
+
+(
+cat ${rttfile} | sed 's/^/rtt /'
+
+cat ${reqthinkinitialip} 
+)| awk -v mval=${tosendmean} -v valfile=${newname} -v ipfile=${newipname} ' BEGIN {
+	print "mval= "mval " valfile="valfile" ipfile="ipfile > "/dev/null";
+}{
+	if($1=="rtt") rtt[$2]=$3;
+
+	else {
+		if(rtt[$2]!="") {
+			if($1>rtt[$2]) {
+			printf "%s %d\n", $2, $1-rtt[$2]>> ipfile
+			printf "%d\n", $1-rtt[$2]>> valfile
+			}
+			else {
+			print $2, 0>> ipfile
+			printf "%d\n", 0>> valfile
+			}
+		}
+		else {
+			if($1> tosendmean) {
+			printf "%s %f\n",  $2, $1- tosendmean>> ipfile
+			printf "%d\n", $1- tosendmean>> valfile
+			}
+			else {
+			printf "%s %f\n",  $2, $1>> ipfile
+			printf "%d\n", $1>> valfile
+			}
+		}
+
+	}
+
+}'

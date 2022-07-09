@@ -1,0 +1,325 @@
+#!/bin/bash
+###################################################################################
+# 
+#  Copyright (C) 2008 Kashi Venkatesh Vishwanath <swingxficgenerator@gmail.com>
+# 
+#  Permission is hereby granted, free of charge, to any person obtaining a copy of
+#  this software and associated documentation files (the "Software"), to  deal  in
+#  the Software without restriction, including without limitation  the  rights  to
+#  use, copy, modify, merge, publish, distribute, sublicense, and/or  sell  copies
+#  of the Software, and to permit persons to whom the Software is furnished to  do
+#  so, subject to the following conditions:
+# 
+#  The above copyright notice and this permission notice shall be included in  all
+#  copies of the Software and its documentation and acknowledgment shall be  given
+#  in the documentation  and  software  packages  that  this  Software  was  used.
+#  
+#  You should have received a copy of the GNU Library General Public License along
+#  with this library; if not, write to the  Free  Software  Foundation,  Inc.,  59
+#  Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+# 
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY  OF  ANY  KIND,  EXPRESS  OR
+#  IMPLIED, INCLUDING BUT  NOT  LIMITED  TO  THE  WARRANTIES  OF  MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO  EVENT  SHALL  THE
+#  AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR  OTHER  LIABILITY,  WHETHER  IN  AN
+#  ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF  OR  IN  CONNECTION
+#  WITH  THE  SOFTWARE  OR  THE  USE  OR   OTHER   DEALINGS  IN   THE   SOFTWARE.
+#
+#
+#
+#  Last Modified : Thu Sep 18 22:48:28 PDT 2008
+#
+###################################################################################
+
+if [ "$#" -lt "3" ]
+then
+	echo "Usage $0 <tologfile> <forconndata> <rttfile>  [emg]"
+	exit
+fi
+
+tologfile=$1
+forconndata=$2
+rttfile=$3;
+emg=$4
+
+
+# if rev=0 and client0=1 then src=client
+# if rev=0 and client0=0 then src=server
+# if rev=1 and client0=0 then src=client
+# if rev=1 and client0=1 then src=server
+# ==> if rev==client0 then src=server
+
+cat < /dev/null > plrstrange
+
+# below sort order =  src, dst, rev,  time
+cat ${forconndata} |awk '{ if($8!="ack") print }' | grep -v "(0)" | sort -k 3,3 -k 5,5 -k 1,1n -k 2,2n | plrhelper1 - > /dev/null
+
+cat < /dev/null > strangeplrs
+
+
+cat < /dev/null > lossinfofile
+cat < /dev/null > RTOfile
+(
+cat ${rttfile} | sed 's/^/rtt /'
+cat holesinfofile | grep -v MAYBE | sort -k 1,1 -k 3,3n -k 4,4n 
+)| awk '{
+# when we sort the order is numpkts, hole, ooo
+# hence 
+# num1 => SEG 1 loss and retransmit
+# num2 => SEG 2 retransmit
+debug=0;
+if($1=="rtt") { rtt[$2]=$3;
+	n[$2]=0;
+	num1[$2]=0;
+	num2[$2]=0;
+}
+else{
+	if(debug==1)
+		{
+			print "-------------------------------------";
+			print "input line "$0 ;
+		}
+		flowid=$1;
+		flag=$2;
+		seq=$3;
+		tm=$4;
+
+		thisid=flowid"#"seq;
+		split(thisid,iparr,/#/);
+		split(iparr[1],ipar,/\./);
+		srcip=ipar[1]"."ipar[2]"."ipar[3]"."ipar[4];
+		sip=srcip;
+		thisip=ipar[1]"."ipar[2]"."ipar[3]"."ipar[4];
+		srcip=flowid;
+
+
+		#print "thisid " thisid " previd " previd " srcip " srcip " sawholes " sawholes;
+
+		if($2=="NUMPKTS"){
+			n[srcip]+=$3;
+			thispkts=$3;
+			thisholes=0;
+			thiseee=0;
+			thisooo=0;
+			#	print srcip, n[srcip];
+			#	print "numpkts";
+		}
+
+	else {
+		#print "thisid " thisid
+		if (thisid==previd) {
+			#	print "same id ";
+			# 
+			if(flag=="HOLE") {
+				sawholes=1;
+				notprinted=1;
+				holetm=tm;
+				holeseq=seq;
+				#			print "hole found ";
+				prevflag="NOTOOO"
+			} else if(flag=="EEE") {
+			extraholes[srcip]+=$3;
+			prevflag="NOTOOO"
+		} else if(flag=="MAYBEHOLE") {
+		maybeholes[srcip]+=1;
+		prevflag="MAYBE"
+	}
+else {
+	# i.e. flag = OOO
+	if(notprinted==1) {
+		if(sawholes==0) {
+			# retransmit cos of seg 2
+
+			num2[srcip]++;
+			thisooo++;
+			notprinted=0;
+			if(debug==1) {
+				print "SEG2 " thisid
+				print "num2 = "num2[srcip];
+			}
+		}
+	else {
+		#	print "SEG1 depending on rtt " thisid " possible srcip with rtt " srcip " " rtt[srcip];
+		#					print "the rtt is " rtt[srcip];
+		if(rtt[thisip]=="") {
+			rtt[thisip]=100;
+		}
+		if(rtt[thisip]=="") {
+			print " no rtt available for " srcip >> "strangeplrs";
+		}
+	else{
+		if(tm <(holetm + rtt[thisip]/1000)) {
+			if(debug==1){
+				print "probably reordered";
+			}
+			n[srcip]++;
+		}
+	else {
+		if(debug==1)
+			print "SEG1 " thisid;
+			num1[srcip]++;
+			thisholes++;
+			print "RTO " thisid " " tm - prevtm >> "RTOfile"
+			notprinted=0;
+		}
+	} 
+	# else for rtt srcip
+} 
+# else for saw holes
+notprinted=0;
+				}
+				# else for notprinted
+			} 
+			# else for flag == HOLE
+		} else {
+		if(debug==1) print "diff id";
+			sawholes=0;
+			notprinted=1;
+			if(flag=="HOLE") {
+				sawholes=1;
+				holeseq=seq;
+				if(debug==1)
+					print " new flowid hole ";
+					holetm=tm;
+					prevflag="NOTOOO"
+
+				} else if (flag=="EEE"){
+				if (debug==1)
+					print "EEE" thisid; 
+					extraholes[srcip]+=$3;
+					prevflag="NOTOOO"
+
+				} else if (flag=="MAYBEHOLE") {
+				prevflag="NOTOOO"
+				if(debug==1)
+					print "MAYBEHOLE " thisid;
+					maybeholes[srcip]++;
+				} else {
+				if(prevflag!="OOO" && prevflag!="MAYBE") {
+					correlatedlosses=0; corrprinted=0;
+					if(debug==1) 
+						print "SEG2 " thisid
+						num2[srcip]++;
+						notprinted=0;
+						prevflag="OOO";
+						if(debug==1) print "num2 " num2[srcip];
+						}
+					else {
+						if(debug==1)		print "PREVVVVVVVVVVVV";
+							correlatedlosses++;
+							if(correlatedlosses>=1 && corrprinted!=1) {
+								if(debug==1) print "CORRELATED LOSSES";
+									num2[srcip]--;
+									corrprinted=1;
+								}
+							}
+						}
+					}
+				}
+				# else for $2=NUMPKTS
+				previd=thisid;
+				prevtm=tm;
+			}
+			#else for $1==rtt
+		} END {
+		for (ips in n)
+			{
+				if(num1[ips]=="") num1[ips]=0;
+					if(num2[ips]=="") num2[ips]=0;
+						if(extraholes[ips]=="") extraholes[ips]=0;
+							if(maybeholes[ips]=="") maybeholes[ips]=0;
+								if(n[ips]>10)
+									print ips " "n[ips] " " num1[ips] " " num2[ips] " " extraholes[ips] " " maybeholes[srcip]>> "lossinfofile"
+								}
+							}'
+
+
+# get new lossinfo file from old lossinfofile
+
+cat lossinfofile | awk '{
+	split($1,iparr,/\./);
+	srcip=iparr[1]"."iparr[2]"."iparr[3]"."iparr[4];
+	n1[srcip]+=$2;
+	n2[srcip]+=$3;
+	n3[srcip]+=$4;
+	n4[srcip]+=$5;
+	n5[srcip]+=$6;
+} END {
+	for (ip in n1)
+	{
+		print ip, n1[ip],n2[ip],n3[ip],n4[ip],n5[ip];
+	}
+}' > lossinfofile-flowid
+
+
+cat < /dev/null > plr0
+cat < /dev/null > plr1
+cat < /dev/null > plr2
+
+# format of lossinfofile-flowid is
+# IP properpkts SEG1losses SEG2losses EEE
+# 1     2           3        4         5
+cat lossinfofile-flowid | awk '{
+if(($2+$3) >0 ){
+	#plr0=($3+$4 - $5)/($2+$3);
+	#plr1=($3 - $5)/($2+$3);
+	# ignore $5 i.e. EEE for now.
+	plr0=($3+$4 -$5)/($2+$3);
+	plr1=($3 -$5)/($2+$3);
+	maybeplr1=($6+$3-$5)/($2+$3)
+	maybeplr1=plr1;
+	if(plr1==0 || maybeplr1 <= plr1*2)
+		{
+			plr1=maybeplr1;
+			#		print "changing plr to  " plr1
+			#		print $6 " losses of: " $2
+		}
+
+	} 
+else {
+	plr0=0.0;
+	plr1=0.0;
+}
+if($2>0) {
+	plr2=($4)/($2);
+	echo "plr2 is " plr2
+}
+	else {
+		plr2=0.0;
+	}
+	if(plr2<0) plr2=0.0;
+		if(plr1<0) plr1=0.0;
+			plr0=plr1+plr2 - plr1*plr2; # for now;
+			#plr0=plr1+plr2 ;
+
+			#if(($2+$3)>100) {
+			if(($2+$3)>100) {
+				printf "%s %.6f\n", $1, plr0 >> "plr0";
+				printf "%s %.6f\n", $1, plr1 >> "plr1";
+				printf "%s %.6f\n", $1, plr2 >> "plr2";
+			}
+		else {
+			printf "%s %.6f\n", $1, 0.0 >> "plr0";
+			printf "%s %.6f\n", $1, 0.0 >> "plr1";
+			printf "%s %.6f\n", $1, 0.0 >> "plr2";
+		}
+
+	}'
+
+
+# emg fix
+for f in `echo plr0 plr1 plr2`
+do
+(cat ${emg} | sed 's/^/emg /'
+cat ${f}
+) | awk '{
+if($1=="emg") emg[$2]=$3;
+else {
+	if(emg[$1]>=500) print ;
+	else
+	print $1, 0.0;
+}
+}'> ${f}fixed
+cp ${f}fixed ${f}
+done
+
