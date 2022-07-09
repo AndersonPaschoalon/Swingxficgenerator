@@ -1,15 +1,15 @@
 # Swingxficgenerator (v0.3.2)
 
 
-This is a re-upload for the Swing Traffic Generator. 
+This is a re-upload for the Swing Traffic Generator. Its official homepage is located [**HERE**](https://cseweb.ucsd.edu/~kvishwanath/Swing/). 
 
 The swing traffic generator is a tool used in the publication *Swing: Realistic and Responsive Network Traffic Generation*. But the original source code has a compilation error, and I fixed it.
 
 I tried to contact the author some times by email, but with no response. If the author, or anyone related with the project find this repository, please, contact me. 
 
-Since the Author [**Kashi Venkatesh Vishwanath**](AUTHORS) allowed to redistribute the code, according to its [*LICENCE**](LICENSE)* I decided publish it here, so anyone can use this tool.
+Since the Author [**Kashi Venkatesh Vishwanath**](AUTHORS) allowed to redistribute the code, according to its [**LICENCE**](LICENSE) I decided publish it here, so anyone can use this tool.
 
-The original readme file, with a quick introduction, can be found [here](README).
+The original readme file, with a quick introduction, can be found [**here**](README).
 
 If you use **Swingxficgenerator** in any work, please, cite the original paper. I also recomment the reading for a deeper undertanding of the tool.
 
